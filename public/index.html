@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Slate — Andas Productions</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#f4f0e6; --paper:#fffdf7; --paper-line:#ddd4bd;
+    --ink:#211f1a; --ink-dim:#726a58; --ink-faint:#a89d84;
+    --accent:#2f5d50; --accent-ink:#f4f0e6; --accent-soft:#e1ebe4; --accent-line:#bcd0c4;
+    --rec:#bd4128; --rec-soft:#f6ddd4;
+    --warn:#a8792a; --warn-soft:#f3e6c8;
+    --pause:#8a8471; --pause-soft:#eae5d6;
+    --shadow: 0 1px 2px rgba(33,31,26,.06), 0 8px 24px -12px rgba(33,31,26,.18);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#151309; --paper:#1e1b12; --paper-line:#3a3322;
+      --ink:#f0ebdc; --ink-dim:#b3a88e; --ink-faint:#7d735c;
+      --accent:#5fa792; --accent-ink:#0d1a15; --accent-soft:#20302a; --accent-line:#3a5449;
+      --rec:#e07557; --rec-soft:#3a2018;
+      --warn:#d9ab55; --warn-soft:#382c14;
+      --pause:#9b947f; --pause-soft:#2c281c;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+    }
+  }
+  *{box-sizing:border-box;}
+  body{ background:var(--bg); color:var(--ink); font-family:'Source Serif 4', Georgia, serif; margin:0; min-height:100vh; }
+  h1,h2,h3{ font-family:'Big Shoulders Display','Arial Narrow',sans-serif; font-weight:800; text-transform:uppercase; letter-spacing:.01em; text-wrap:balance; margin:0; }
+
+  header.slate{ background:#0c0b07; color:var(--bg); padding:22px clamp(16px,4vw,40px) 0; }
+  .slate-top{ display:flex; align-items:baseline; justify-content:space-between; gap:16px; flex-wrap:wrap; max-width:1080px; margin:0 auto; }
+  .slate-top h1{ font-size:clamp(1.6rem,4vw,2.1rem); color:var(--bg); }
+  .slate-sub{ font-family:'IBM Plex Mono',monospace; font-size:.78rem; color:#8f9c93; letter-spacing:.04em; }
+  .sync-note{ font-family:'IBM Plex Mono',monospace; font-size:.66rem; color:#7c8a80; }
+  nav.tabs{ max-width:1080px; margin:18px auto 0; display:flex; gap:4px; border-bottom:2px solid var(--accent); flex-wrap:wrap; }
+  nav.tabs button{
+    font-family:'IBM Plex Mono',monospace; font-size:.74rem; letter-spacing:.08em; text-transform:uppercase;
+    background:none; border:none; color:#a49a86; padding:10px 16px 12px; cursor:pointer;
+    border-bottom:3px solid transparent; margin-bottom:-2px; transition:color .15s;
+  }
+  nav.tabs button:hover{ color:var(--bg); }
+  nav.tabs button[aria-selected="true"]{ color:var(--bg); border-bottom-color:var(--accent); }
+  nav.tabs button .count{ display:inline-block; margin-left:6px; font-size:.68rem; color:var(--accent-ink); background:var(--accent); border-radius:999px; padding:1px 6px; }
+
+  main{ max-width:1080px; margin:0 auto; padding:28px clamp(16px,4vw,40px) 80px; }
+  section.view{ display:none; }
+  section.view.active{ display:block; }
+
+  .toolbar{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
+  .toolbar p.hint{ margin:0; }
+
+  .btn{ font-family:'IBM Plex Mono',monospace; font-size:.76rem; letter-spacing:.06em; text-transform:uppercase;
+    padding:10px 18px; border-radius:4px; border:1px solid var(--accent); background:var(--accent); color:var(--accent-ink); cursor:pointer; white-space:nowrap; }
+  .btn:hover{ filter:brightness(1.08); }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; }
+  .btn.ghost{ background:transparent; color:var(--accent); }
+  .btn.danger{ border-color:var(--rec); background:transparent; color:var(--rec); }
+  .btn.danger.armed{ background:var(--rec); color:#fff9f5; }
+
+  .hint{ font-family:'IBM Plex Mono',monospace; font-size:.72rem; color:var(--ink-faint); line-height:1.6; }
+  .empty-state{ font-family:'IBM Plex Mono',monospace; font-size:.8rem; color:var(--ink-faint); padding:40px 0; text-align:center; }
+
+  #board{ display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; }
+  .pcard{ background:var(--paper); border:1px solid var(--paper-line); border-radius:6px; box-shadow:var(--shadow); padding:16px 18px; cursor:pointer; }
+  .pcard:hover{ border-color:var(--accent-line); }
+  .pcard-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:8px; }
+  .pcard-head h3{ font-size:1.05rem; text-transform:none; letter-spacing:0; font-family:'Source Serif 4',serif; font-weight:600; }
+  .chip-row{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+  .chip{ font-family:'IBM Plex Mono',monospace; font-size:.62rem; letter-spacing:.05em; text-transform:uppercase; padding:2px 8px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent); }
+  .chip.risk{ background:var(--warn-soft); color:var(--warn); border-color:var(--warn); }
+  .chip.blocked{ background:var(--rec-soft); color:var(--rec); border-color:var(--rec); }
+  .chip.paused{ background:var(--pause-soft); color:var(--pause); border-color:var(--pause); }
+  .chip.stage{ background:var(--bg); color:var(--ink-dim); border-color:var(--paper-line); }
+  .pcard p.summary{ font-size:.88rem; color:var(--ink-dim); line-height:1.55; margin:0 0 10px; }
+  .staff-line{ font-family:'IBM Plex Mono',monospace; font-size:.7rem; color:var(--ink-dim); margin-bottom:6px; }
+  .staff-line b{ color:var(--ink); font-weight:600; }
+  .pcard-foot{ display:flex; justify-content:space-between; align-items:center; font-family:'IBM Plex Mono',monospace; font-size:.68rem; color:var(--ink-faint); margin-top:10px; padding-top:10px; border-top:1px solid var(--paper-line); }
+  .support-badge{ color:var(--warn); }
+
+  .pcard.editing{ cursor:default; grid-column:1 / -1; }
+  .edit-row{ display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+  .field{ display:flex; flex-direction:column; gap:5px; flex:1 1 160px; }
+  .field label{ font-family:'IBM Plex Mono',monospace; font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-dim); }
+  input[type="text"], input[type="date"], select, textarea{
+    font-family:'Source Serif 4', Georgia, serif; font-size:.92rem; color:var(--ink); background:var(--bg);
+    border:1px solid var(--paper-line); border-radius:4px; padding:8px 10px; width:100%;
+  }
+  select{ font-family:'IBM Plex Mono',monospace; font-size:.8rem; }
+  textarea{ min-height:60px; resize:vertical; }
+  input:focus, select:focus, textarea:focus, button:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+
+  .section-label{ font-family:'IBM Plex Mono',monospace; font-size:.68rem; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); margin:18px 0 8px; }
+  .sub-row{ display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+  .sub-row input[type="text"]{ flex:1; }
+  .sub-row input[type="date"]{ flex:0 0 150px; }
+  .sub-row .rm{ background:none; border:none; color:var(--ink-faint); cursor:pointer; font-size:1rem; padding:4px 6px; flex-shrink:0; }
+  .sub-row .rm:hover{ color:var(--rec); }
+  .sub-row input[type="checkbox"]{ accent-color:var(--accent); width:15px; height:15px; flex-shrink:0; }
+  .support-toggle{ display:flex; align-items:center; gap:5px; font-family:'IBM Plex Mono',monospace; font-size:.66rem; color:var(--ink-dim); flex-shrink:0; white-space:nowrap; }
+  .support-toggle input{ accent-color:var(--warn); }
+  .add-row-btn{ font-family:'IBM Plex Mono',monospace; font-size:.68rem; letter-spacing:.05em; text-transform:uppercase; background:none; border:1px dashed var(--paper-line); color:var(--ink-dim); border-radius:4px; padding:7px 12px; cursor:pointer; width:100%; text-align:left; }
+  .add-row-btn:hover{ border-color:var(--accent-line); color:var(--accent); }
+
+  .edit-actions{ display:flex; gap:10px; margin-top:20px; padding-top:16px; border-top:2px solid var(--accent); flex-wrap:wrap; align-items:center; }
+  .save-status{ font-family:'IBM Plex Mono',monospace; font-size:.72rem; color:var(--ink-dim); }
+
+  .roll-row{ display:flex; align-items:flex-start; gap:12px; padding:12px 0; border-bottom:1px solid var(--paper-line); }
+  .roll-row:last-child{ border-bottom:none; }
+  .roll-row input[type="checkbox"]{ margin-top:4px; width:15px; height:15px; accent-color:var(--accent); flex-shrink:0; }
+  .roll-body{ flex:1; }
+  .roll-body .item-text{ font-size:.92rem; }
+  .roll-meta{ font-family:'IBM Plex Mono',monospace; font-size:.7rem; color:var(--ink-faint); margin-top:3px; }
+  .roll-date{ font-family:'IBM Plex Mono',monospace; font-size:.85rem; color:var(--ink); min-width:74px; flex-shrink:0; padding-top:1px; }
+
+  footer{ max-width:1080px; margin:0 auto; padding:0 clamp(16px,4vw,40px) 50px; }
+  footer p{ font-family:'IBM Plex Mono',monospace; font-size:.7rem; color:var(--ink-faint); line-height:1.7; }
+</style>
+</head>
+<body>
+
+<header class="slate">
+  <div class="slate-top">
+    <h1>The Slate</h1>
+    <div>
+      <div class="slate-sub">ANDAS PRODUCTIONS &middot; COMPANY-WIDE SLATE</div>
+      <div class="sync-note" id="syncNote">Loading…</div>
+    </div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-view="board" aria-selected="true">All Projects <span class="count" id="boardCount" hidden>0</span></button>
+    <button role="tab" data-view="milestones">Upcoming Milestones <span class="count" id="msCount" hidden>0</span></button>
+    <button role="tab" data-view="support">Needs Support <span class="count" id="supCount" hidden>0</span></button>
+  </nav>
+</header>
+
+<main>
+  <section class="view active" id="view-board">
+    <div class="toolbar">
+      <p class="hint">Click a project to open it &mdash; anyone with this link can add, edit or update staffing.</p>
+      <button class="btn" id="newProjectBtn" type="button">+ New Project</button>
+    </div>
+    <div id="board"><div class="empty-state">Loading the slate&hellip;</div></div>
+  </section>
+
+  <section class="view" id="view-milestones">
+    <p class="hint" style="margin:0 0 14px">Every upcoming milestone across the whole slate, soonest first.</p>
+    <div id="msList"><div class="empty-state">Loading&hellip;</div></div>
+  </section>
+
+  <section class="view" id="view-support">
+    <p class="hint" style="margin:0 0 14px">Everything flagged as needing company-level support, across every project.</p>
+    <div id="supList"><div class="empty-state">Loading&hellip;</div></div>
+  </section>
+</main>
+
+<footer>
+  <p>This board is shared &mdash; edits from anyone with the link save live for everyone (synced every ~10s). Keep it high-level: project-specific detail belongs with whoever's staffed on that project, not here.</p>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  var STAGES = ["Development","Pre-Production","Production","Post","Delivered","On Hold"];
+  var HEALTHS = ["On track","At risk","Blocked","Paused"];
+  var POLL_MS = 10000;
+
+  var projectsData = {};
+  var order = [];
+  var openId = null;
+  var isNewDraft = false;
+
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+  function healthClass(h){
+    var s = (h || "").toLowerCase();
+    if(s.indexOf("risk") >= 0) return "risk";
+    if(s.indexOf("block") >= 0) return "blocked";
+    if(s.indexOf("pause") >= 0) return "paused";
+    return "";
+  }
+  function fmtDate(iso){
+    if(!iso) return "";
+    var p = String(iso).split("T")[0].split("-");
+    if(p.length !== 3) return iso;
+    var d = new Date(Date.UTC(+p[0], +p[1]-1, +p[2]));
+    return d.toLocaleDateString(undefined, { month:"short", day:"numeric", year:"numeric", timeZone:"UTC" });
+  }
+  function uid(){ return "p_" + Date.now().toString(36) + Math.random().toString(36).slice(2,9); }
+  function emptyProject(){
+    return { name:"Untitled Project", stage:"Development", health:"On track", summary:"",
+      staffing:[], milestones:[], items:[] };
+  }
+
+  // ---------- API ----------
+  function apiList(){ return fetch("/api/projects").then(function(r){ if(!r.ok) throw new Error("list failed"); return r.json(); }); }
+  function apiCreate(id, body){ return fetch("/api/projects", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(Object.assign({id:id}, body)) }).then(function(r){ if(!r.ok) throw new Error("create failed"); return r.json(); }); }
+  function apiUpdate(id, body){ return fetch("/api/projects/" + encodeURIComponent(id), { method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) }).then(function(r){ if(!r.ok) throw new Error("update failed"); return r.json(); }); }
+  function apiDelete(id){ return fetch("/api/projects/" + encodeURIComponent(id), { method:"DELETE" }).then(function(r){ if(!r.ok && r.status !== 204) throw new Error("delete failed"); }); }
+
+  // ---------- tabs ----------
+  var tabButtons = document.querySelectorAll("nav.tabs button");
+  var views = { board: document.getElementById("view-board"), milestones: document.getElementById("view-milestones"), support: document.getElementById("view-support") };
+  tabButtons.forEach(function(btn){
+    btn.addEventListener("click", function(){
+      tabButtons.forEach(function(b){ b.setAttribute("aria-selected", b === btn ? "true" : "false"); });
+      Object.keys(views).forEach(function(k){ views[k].classList.toggle("active", k === btn.dataset.view); });
+      if(btn.dataset.view === "milestones") renderMilestones();
+      if(btn.dataset.view === "support") renderSupport();
+    });
+  });
+
+  // ==================== BOARD ====================
+  var boardEl = document.getElementById("board");
+  var boardCount = document.getElementById("boardCount");
+
+  function renderBoard(){
+    if(order.length === 0){
+      boardEl.innerHTML = '<div class="empty-state">No projects on the slate yet. Add the first one.</div>';
+      boardCount.hidden = true;
+      return;
+    }
+    boardCount.hidden = false;
+    boardCount.textContent = String(order.length);
+
+    Array.prototype.slice.call(boardEl.querySelectorAll("[data-pid]")).forEach(function(node){
+      if(order.indexOf(node.dataset.pid) === -1) node.remove();
+    });
+
+    order.forEach(function(id){
+      var existing = boardEl.querySelector('[data-pid="' + id + '"]');
+      if(id === openId){
+        if(!existing){
+          var wrap = document.createElement("div");
+          wrap.dataset.pid = id;
+          boardEl.appendChild(wrap);
+          renderEditForm(wrap, id);
+        }
+        return;
+      }
+      if(!existing){
+        existing = document.createElement("div");
+        existing.dataset.pid = id;
+        boardEl.appendChild(existing);
+      }
+      renderCollapsedCard(existing, id);
+    });
+
+    order.forEach(function(id){
+      var node = boardEl.querySelector('[data-pid="' + id + '"]');
+      if(node) boardEl.appendChild(node);
+    });
+  }
+
+  function renderCollapsedCard(wrap, id){
+    var d = projectsData[id];
+    if(!d) return;
+    var openItems = (d.items || []).filter(function(i){ return !i.done; });
+    var supportOpen = openItems.filter(function(i){ return i.needsSupport; }).length;
+    var nextMs = (d.milestones || []).filter(function(m){ return !m.done; }).sort(function(a,b){ return (a.date||"9999").localeCompare(b.date||"9999"); })[0];
+    var staffPreview = (d.staffing || []).slice(0,3).map(function(s){ return "<b>" + esc(s.name) + "</b>" + (s.role ? " &middot; " + esc(s.role) : ""); }).join(", ");
+    var staffMore = (d.staffing || []).length > 3 ? " +" + ((d.staffing || []).length - 3) + " more" : "";
+
+    wrap.className = "pcard";
+    wrap.innerHTML =
+      '<div class="pcard-head"><h3>' + esc(d.name) + '</h3></div>' +
+      '<div class="chip-row"><span class="chip stage">' + esc(d.stage) + '</span><span class="chip ' + healthClass(d.health) + '">' + esc(d.health) + '</span></div>' +
+      (d.summary ? '<p class="summary">' + esc(d.summary) + '</p>' : '<p class="summary" style="font-style:italic">No summary yet.</p>') +
+      (staffPreview ? '<div class="staff-line">' + staffPreview + staffMore + '</div>' : '<div class="staff-line" style="font-style:italic">No staffing logged.</div>') +
+      '<div class="pcard-foot"><span>' + (nextMs ? "Next: " + esc(nextMs.label) + (nextMs.date ? " (" + fmtDate(nextMs.date) + ")" : "") : "No upcoming milestones") + '</span>' +
+      (supportOpen ? '<span class="support-badge">&#9873; ' + supportOpen + ' need' + (supportOpen===1?"s":"") + ' support</span>' : '<span></span>') +
+      '</div>';
+    wrap.onclick = function(){ openId = id; isNewDraft = false; renderBoard(); };
+  }
+
+  function renderEditForm(wrap, id){
+    var d = projectsData[id];
+    if(!d) return;
+    wrap.className = "pcard editing";
+    wrap.onclick = null;
+
+    var html = '<div class="edit-row">' +
+      '<div class="field" style="flex:2 1 260px"><label>Project Name</label><input type="text" id="f-name" value="' + esc(d.name) + '"></div>' +
+      '<div class="field"><label>Stage</label><select id="f-stage">' + STAGES.map(function(s){ return '<option value="' + s + '"' + (s===d.stage?" selected":"") + '>' + s + '</option>'; }).join("") + '</select></div>' +
+      '<div class="field"><label>Health</label><select id="f-health">' + HEALTHS.map(function(h){ return '<option value="' + h + '"' + (h===d.health?" selected":"") + '>' + h + '</option>'; }).join("") + '</select></div>' +
+      '</div>' +
+      '<div class="field"><label>Summary &mdash; company-level view, not project detail</label><textarea id="f-summary" placeholder="How is this going, from a company perspective?">' + esc(d.summary) + '</textarea></div>';
+
+    html += '<div class="section-label">Staffing</div><div id="f-staffing"></div><button type="button" class="add-row-btn" id="addStaff">+ Add person</button>';
+    html += '<div class="section-label">Upcoming Milestones</div><div id="f-milestones"></div><button type="button" class="add-row-btn" id="addMs">+ Add milestone</button>';
+    html += '<div class="section-label">Tasks &amp; Support Asks</div><div id="f-items"></div><button type="button" class="add-row-btn" id="addItem">+ Add item</button>';
+
+    html += '<div class="edit-actions">' +
+      '<button class="btn" id="saveBtn" type="button">Save Changes</button>' +
+      '<button class="btn ghost" id="closeBtn" type="button">Close</button>' +
+      '<button class="btn danger" id="delBtn" type="button">Delete Project</button>' +
+      '<span class="save-status" id="saveStatus"></span>' +
+      '</div>';
+
+    wrap.innerHTML = html;
+
+    var staffing = (d.staffing || []).map(function(s){ return { name:s.name||"", role:s.role||"", scope:s.scope||"" }; });
+    var milestones = (d.milestones || []).map(function(m){ return { label:m.label||"", date:m.date||"", done: !!m.done }; });
+    var items = (d.items || []).map(function(i){ return { text:i.text||"", done: !!i.done, needsSupport: !!i.needsSupport }; });
+
+    function renderStaffing(){
+      var el = wrap.querySelector("#f-staffing");
+      el.innerHTML = staffing.map(function(s, i){
+        return '<div class="sub-row" data-i="' + i + '">' +
+          '<input type="text" class="s-name" placeholder="Name" value="' + esc(s.name) + '" style="flex:1 1 120px">' +
+          '<input type="text" class="s-role" placeholder="Role" value="' + esc(s.role) + '" style="flex:1 1 110px">' +
+          '<input type="text" class="s-scope" placeholder="Scope / notes" value="' + esc(s.scope) + '" style="flex:2 1 160px">' +
+          '<button type="button" class="rm" data-idx="' + i + '">&times;</button></div>';
+      }).join("");
+      el.querySelectorAll(".sub-row").forEach(function(row){
+        var i = +row.dataset.i;
+        row.querySelector(".s-name").addEventListener("input", function(e){ staffing[i].name = e.target.value; });
+        row.querySelector(".s-role").addEventListener("input", function(e){ staffing[i].role = e.target.value; });
+        row.querySelector(".s-scope").addEventListener("input", function(e){ staffing[i].scope = e.target.value; });
+        row.querySelector(".rm").addEventListener("click", function(){ staffing.splice(i,1); renderStaffing(); });
+      });
+    }
+    function renderMs(){
+      var el = wrap.querySelector("#f-milestones");
+      el.innerHTML = milestones.map(function(m, i){
+        return '<div class="sub-row" data-i="' + i + '">' +
+          '<input type="checkbox" class="m-done"' + (m.done?" checked":"") + '>' +
+          '<input type="text" class="m-label" placeholder="Milestone" value="' + esc(m.label) + '">' +
+          '<input type="date" class="m-date" value="' + esc(m.date) + '">' +
+          '<button type="button" class="rm" data-idx="' + i + '">&times;</button></div>';
+      }).join("");
+      el.querySelectorAll(".sub-row").forEach(function(row){
+        var i = +row.dataset.i;
+        row.querySelector(".m-done").addEventListener("change", function(e){ milestones[i].done = e.target.checked; });
+        row.querySelector(".m-label").addEventListener("input", function(e){ milestones[i].label = e.target.value; });
+        row.querySelector(".m-date").addEventListener("input", function(e){ milestones[i].date = e.target.value; });
+        row.querySelector(".rm").addEventListener("click", function(){ milestones.splice(i,1); renderMs(); });
+      });
+    }
+    function renderItems(){
+      var el = wrap.querySelector("#f-items");
+      el.innerHTML = items.map(function(it, i){
+        return '<div class="sub-row" data-i="' + i + '">' +
+          '<input type="checkbox" class="i-done"' + (it.done?" checked":"") + '>' +
+          '<input type="text" class="i-text" placeholder="Task or ask" value="' + esc(it.text) + '">' +
+          '<label class="support-toggle"><input type="checkbox" class="i-support"' + (it.needsSupport?" checked":"") + '> needs support</label>' +
+          '<button type="button" class="rm" data-idx="' + i + '">&times;</button></div>';
+      }).join("");
+      el.querySelectorAll(".sub-row").forEach(function(row){
+        var i = +row.dataset.i;
+        row.querySelector(".i-done").addEventListener("change", function(e){ items[i].done = e.target.checked; });
+        row.querySelector(".i-text").addEventListener("input", function(e){ items[i].text = e.target.value; });
+        row.querySelector(".i-support").addEventListener("change", function(e){ items[i].needsSupport = e.target.checked; });
+        row.querySelector(".rm").addEventListener("click", function(){ items.splice(i,1); renderItems(); });
+      });
+    }
+    renderStaffing(); renderMs(); renderItems();
+
+    wrap.querySelector("#addStaff").addEventListener("click", function(){ staffing.push({name:"",role:"",scope:""}); renderStaffing(); });
+    wrap.querySelector("#addMs").addEventListener("click", function(){ milestones.push({label:"",date:"",done:false}); renderMs(); });
+    wrap.querySelector("#addItem").addEventListener("click", function(){ items.push({text:"",done:false,needsSupport:false}); renderItems(); });
+
+    wrap.querySelector("#closeBtn").addEventListener("click", function(){
+      if(isNewDraft){ delete projectsData[id]; order = order.filter(function(x){ return x!==id; }); }
+      openId = null; isNewDraft = false; renderBoard();
+    });
+
+    var delBtn = wrap.querySelector("#delBtn");
+    delBtn.addEventListener("click", function(){
+      if(delBtn.dataset.armed !== "true"){
+        delBtn.dataset.armed = "true";
+        delBtn.classList.add("armed");
+        delBtn.textContent = "Click again to confirm";
+        setTimeout(function(){ delBtn.dataset.armed = "false"; delBtn.classList.remove("armed"); delBtn.textContent = "Delete Project"; }, 4000);
+        return;
+      }
+      if(isNewDraft){ openId = null; isNewDraft = false; delete projectsData[id]; order = order.filter(function(x){ return x!==id; }); renderBoard(); return; }
+      apiDelete(id).then(function(){
+        openId = null;
+        delete projectsData[id];
+        order = order.filter(function(x){ return x!==id; });
+        renderBoard();
+      }).catch(function(){
+        wrap.querySelector("#saveStatus").textContent = "Couldn't delete — try again.";
+      });
+    });
+
+    wrap.querySelector("#saveBtn").addEventListener("click", function(){
+      var status = wrap.querySelector("#saveStatus");
+      var body = {
+        name: wrap.querySelector("#f-name").value.trim() || "Untitled Project",
+        stage: wrap.querySelector("#f-stage").value,
+        health: wrap.querySelector("#f-health").value,
+        summary: wrap.querySelector("#f-summary").value.trim(),
+        staffing: staffing.filter(function(s){ return s.name.trim() || s.role.trim() || s.scope.trim(); }),
+        milestones: milestones.filter(function(m){ return m.label.trim(); }),
+        items: items.filter(function(i){ return i.text.trim(); })
+      };
+      status.textContent = "Saving…";
+      var op = isNewDraft ? apiCreate(id, body) : apiUpdate(id, body);
+      op.then(function(saved){
+        projectsData[id] = saved;
+        isNewDraft = false;
+        status.textContent = "Saved ✓";
+      }).catch(function(){
+        status.textContent = "Couldn't save — try again.";
+      });
+    });
+  }
+
+  document.getElementById("newProjectBtn").addEventListener("click", function(){
+    if(openId) return;
+    var id = uid();
+    projectsData[id] = emptyProject();
+    order.unshift(id);
+    openId = id;
+    isNewDraft = true;
+    renderBoard();
+  });
+
+  // ==================== MILESTONES ROLLUP ====================
+  function renderMilestones(){
+    var el = document.getElementById("msList");
+    var count = document.getElementById("msCount");
+    var rows = [];
+    order.forEach(function(id){
+      var d = projectsData[id];
+      (d.milestones || []).forEach(function(m, idx){
+        if(!m.done) rows.push({ pid:id, idx:idx, label:m.label, date:m.date, project:d.name });
+      });
+    });
+    rows.sort(function(a,b){ return (a.date||"9999").localeCompare(b.date||"9999"); });
+    count.hidden = rows.length === 0;
+    count.textContent = String(rows.length);
+    if(rows.length === 0){ el.innerHTML = '<div class="empty-state">No upcoming milestones logged across the slate.</div>'; return; }
+    el.innerHTML = rows.map(function(r){
+      return '<div class="roll-row"><input type="checkbox" data-pid="' + r.pid + '" data-idx="' + r.idx + '" class="ms-check">' +
+        '<div class="roll-body"><div class="item-text">' + esc(r.label) + '</div><div class="roll-meta">' + esc(r.project) + '</div></div>' +
+        '<div class="roll-date">' + (r.date ? fmtDate(r.date) : "No date") + '</div></div>';
+    }).join("");
+    el.querySelectorAll(".ms-check").forEach(function(cb){
+      cb.addEventListener("change", function(){
+        var pid = cb.dataset.pid, idx = +cb.dataset.idx;
+        var d = projectsData[pid];
+        if(!d) return;
+        var ms = (d.milestones || []).slice();
+        ms[idx] = Object.assign({}, ms[idx], { done: true });
+        cb.disabled = true;
+        apiUpdate(pid, Object.assign({}, d, { milestones: ms })).then(function(saved){
+          projectsData[pid] = saved;
+          renderMilestones();
+        }).catch(function(){ cb.disabled = false; cb.checked = false; });
+      });
+    });
+  }
+
+  // ==================== SUPPORT ROLLUP ====================
+  function renderSupport(){
+    var el = document.getElementById("supList");
+    var count = document.getElementById("supCount");
+    var rows = [];
+    order.forEach(function(id){
+      var d = projectsData[id];
+      (d.items || []).forEach(function(it, idx){
+        if(it.needsSupport && !it.done) rows.push({ pid:id, idx:idx, text:it.text, project:d.name });
+      });
+    });
+    count.hidden = rows.length === 0;
+    count.textContent = String(rows.length);
+    if(rows.length === 0){ el.innerHTML = '<div class="empty-state">Nothing flagged. Every project has what it needs.</div>'; return; }
+    el.innerHTML = rows.map(function(r){
+      return '<div class="roll-row"><input type="checkbox" data-pid="' + r.pid + '" data-idx="' + r.idx + '" class="sup-check">' +
+        '<div class="roll-body"><div class="item-text">' + esc(r.text) + '</div><div class="roll-meta">' + esc(r.project) + '</div></div></div>';
+    }).join("");
+    el.querySelectorAll(".sup-check").forEach(function(cb){
+      cb.addEventListener("change", function(){
+        var pid = cb.dataset.pid, idx = +cb.dataset.idx;
+        var d = projectsData[pid];
+        if(!d) return;
+        var items = (d.items || []).slice();
+        items[idx] = Object.assign({}, items[idx], { done: true });
+        cb.disabled = true;
+        apiUpdate(pid, Object.assign({}, d, { items: items })).then(function(saved){
+          projectsData[pid] = saved;
+          renderSupport();
+        }).catch(function(){ cb.disabled = false; cb.checked = false; });
+      });
+    });
+  }
+
+  // ==================== POLL / LOAD ====================
+  var syncNote = document.getElementById("syncNote");
+  function loadProjects(isFirst){
+    apiList().then(function(list){
+      var newData = {};
+      var newOrder = [];
+      list.forEach(function(p){ newData[p.id] = p; newOrder.push(p.id); });
+      if(openId && isNewDraft && !newData[openId]){
+        newData[openId] = projectsData[openId];
+        newOrder.unshift(openId);
+      }
+      projectsData = newData;
+      order = newOrder;
+      renderBoard();
+      if(views.milestones.classList.contains("active")) renderMilestones();
+      if(views.support.classList.contains("active")) renderSupport();
+      syncNote.textContent = "Synced " + new Date().toLocaleTimeString();
+    }).catch(function(){
+      syncNote.textContent = "Sync failed — retrying…";
+      if(isFirst) boardEl.innerHTML = '<div class="empty-state">Couldn’t reach the server. Check that it’s running.</div>';
+    });
+  }
+
+  loadProjects(true);
+  setInterval(function(){
+    if(!openId) loadProjects(false); // don't yank the board out from under an active edit
+  }, POLL_MS);
+
+})();
+</script>
+</body>
+</html>
