@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Check-In Notes — Andas Productions</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<header class="slate">
+  <div class="slate-top">
+    <h1><a href="/notes.html">Check-In Notes</a></h1>
+    <div style="display:flex; align-items:center; gap:14px;">
+      <div class="slate-sub">ANDAS PRODUCTIONS &middot; BI-WEEKLY CHECK-IN</div>
+      <a class="slate-nav-link" href="/">&larr; The Slate</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <datalist id="projectNames"></datalist>
+
+  <div class="card">
+    <div class="meta-row">
+      <div class="field">
+        <label for="meetingDate">Date</label>
+        <input type="date" id="meetingDate">
+      </div>
+      <div class="field" style="flex:2 1 320px">
+        <label for="meetingAttendees">Attendees</label>
+        <input type="text" id="meetingAttendees" placeholder="e.g. Andrew, Priya, Sam">
+      </div>
+    </div>
+
+    <div class="mode-toggle">
+      <button type="button" data-mode="live" aria-pressed="true">Record Live</button>
+      <button type="button" data-mode="paste" aria-pressed="false">Paste / Upload Transcript</button>
+    </div>
+
+    <div class="capture-panel active" id="panel-live">
+      <div class="rec-console">
+        <div class="rec-dot" id="recDot"></div>
+        <div class="rec-timer" id="recTimer">00:00</div>
+        <div class="rec-status" id="recStatus">Not recording</div>
+        <button class="btn rec-btn" id="recBtn" data-recording="false" type="button">Start Recording</button>
+      </div>
+      <div class="live-transcript" id="liveTranscript"><span style="color:var(--ink-faint)">Transcript will appear here as you talk&hellip;</span></div>
+      <p class="hint" id="liveHint"></p>
+    </div>
+
+    <div class="capture-panel" id="panel-paste">
+      <textarea id="pasteBox" placeholder="Paste a Google Meet transcript, meeting recap, or any raw notes here&hellip;"></textarea>
+      <div class="file-row">
+        <input type="file" id="fileInput" accept=".txt,.vtt,.srt,.text,text/plain">
+        <span class="hint" style="margin-top:0">.txt / .vtt / .srt &mdash; cue numbers and timestamps are stripped automatically</span>
+      </div>
+    </div>
+
+    <div class="generate-row">
+      <button class="btn" id="generateBtn" type="button">Generate Notes</button>
+      <span class="status-line" id="genStatus"></span>
+    </div>
+  </div>
+
+  <div class="card notes-out" id="reviewCard" hidden>
+    <h2 style="font-size:1.1rem; text-transform:none; letter-spacing:0; font-family:'Source Serif 4',serif; font-weight:600; margin-bottom:4px;">Review before pushing to the Slate</h2>
+    <p class="hint" style="margin:0 0 4px">Uncheck anything that shouldn't go on the board. Project names are editable &mdash; matching an existing name updates that project; anything else creates a new one.</p>
+
+    <div class="section-label">Project Updates</div>
+    <div id="projectUpdatesList"></div>
+
+    <div class="section-label">Key Decisions</div>
+    <div id="decisionsList"><p class="hint" style="margin-top:0">None.</p></div>
+
+    <div class="section-label">Follow-Up Items</div>
+    <div id="followUpsList"></div>
+
+    <div class="section-label" id="parkingLabel" hidden>Parking Lot</div>
+    <div id="parkingList"></div>
+
+    <div class="edit-actions">
+      <button class="btn" id="confirmBtn" type="button">Push to the Slate</button>
+      <span class="save-status" id="confirmStatus"></span>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:24px;">
+    <div class="section-label" style="margin-top:0">Recent Check-Ins</div>
+    <div id="recentList"><div class="empty-state">Loading&hellip;</div></div>
+  </div>
+</main>
+
+<footer>
+  <p>Notes are drafted by Claude from your transcript &mdash; skim before pushing. Pushed follow-ups land in the matching project's checklist on The Slate; new project names create a new card there automatically.</p>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  var STAGES = ["Development","Pre-Production","Production","Post","Delivered","On Hold"];
+  var HEALTHS = ["On track","At risk","Blocked","Paused"];
+  var GENERAL = "General / Company-Wide";
+
+  var captureMode = "live";
+  var recognition = null, isRecording = false, recStartTime = 0, recTimerHandle = null;
+  var liveFinal = "";
+  var lastGenerated = null;
+  var lastTranscriptUsed = "";
+
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+  function todayISO(){
+    var d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  }
+  function fmtDate(iso){
+    if(!iso) return "";
+    var p = String(iso).split("T")[0].split("-");
+    if(p.length !== 3) return iso;
+    var d = new Date(Date.UTC(+p[0], +p[1]-1, +p[2]));
+    return d.toLocaleDateString(undefined, { month:"short", day:"numeric", year:"numeric", timeZone:"UTC" });
+  }
+  document.getElementById("meetingDate").value = todayISO();
+
+  // ---------- load existing project names for the datalist ----------
+  var projectNamesEl = document.getElementById("projectNames");
+  function loadProjectNames(){
+    fetch("/api/projects").then(function(r){ return r.json(); }).then(function(list){
+      projectNamesEl.innerHTML = list.map(function(p){ return '<option value="' + esc(p.name) + '">'; }).join("");
+    }).catch(function(){});
+  }
+  loadProjectNames();
+
+  // ---------- recent check-ins ----------
+  function loadRecent(){
+    var el = document.getElementById("recentList");
+    fetch("/api/checkins").then(function(r){ return r.json(); }).then(function(list){
+      if(!list.length){ el.innerHTML = '<div class="empty-state">No check-ins logged yet.</div>'; return; }
+      el.innerHTML = list.map(function(c){
+        var touched = (c.projectsTouched||[]).map(function(t){ return esc(t.name); }).join(", ") || "no projects";
+        return '<div class="roll-row"><div class="roll-body"><div class="item-text">' + esc(fmtDate(c.date)) + ' &mdash; ' + esc(c.attendees || "") + '</div>' +
+          '<div class="roll-meta">Touched: ' + touched + '</div></div></div>';
+      }).join("");
+    }).catch(function(){ el.innerHTML = '<div class="empty-state">Couldn’t load check-ins.</div>'; });
+  }
+  loadRecent();
+
+  // ---------- capture mode toggle ----------
+  var modeButtons = document.querySelectorAll(".mode-toggle button");
+  var panels = { live: document.getElementById("panel-live"), paste: document.getElementById("panel-paste") };
+  modeButtons.forEach(function(btn){
+    btn.addEventListener("click", function(){
+      captureMode = btn.dataset.mode;
+      modeButtons.forEach(function(b){ b.setAttribute("aria-pressed", b === btn ? "true" : "false"); });
+      Object.keys(panels).forEach(function(k){ panels[k].classList.toggle("active", k === captureMode); });
+    });
+  });
+
+  // ---------- live speech recognition ----------
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var recDot = document.getElementById("recDot");
+  var recTimer = document.getElementById("recTimer");
+  var recStatus = document.getElementById("recStatus");
+  var recBtn = document.getElementById("recBtn");
+  var liveTranscriptEl = document.getElementById("liveTranscript");
+  var liveHint = document.getElementById("liveHint");
+
+  if(!SR){
+    recBtn.disabled = true;
+    recStatus.textContent = "Not supported in this browser";
+    liveHint.textContent = "Live transcription needs a Chrome-based browser with microphone access. Use “Paste / Upload Transcript” instead.";
+  } else {
+    recognition = new SR();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+    recognition.onresult = function(event){
+      var interim = "";
+      for(var i = event.resultIndex; i < event.results.length; i++){
+        var t = event.results[i][0].transcript;
+        if(event.results[i].isFinal) liveFinal += t + " ";
+        else interim += t;
+      }
+      renderLive(interim);
+    };
+    recognition.onerror = function(e){
+      if(e.error === "not-allowed" || e.error === "service-not-allowed"){
+        liveHint.textContent = "Microphone access was blocked — check your browser's site permissions for this page.";
+        stopRecording();
+      }
+    };
+    recognition.onend = function(){
+      if(isRecording){ try { recognition.start(); } catch(_err){} }
+    };
+  }
+  function renderLive(interim){
+    liveTranscriptEl.textContent = "";
+    liveTranscriptEl.appendChild(document.createTextNode(liveFinal));
+    if(interim){
+      var i = document.createElement("span");
+      i.className = "interim"; i.textContent = interim;
+      liveTranscriptEl.appendChild(i);
+    }
+    liveTranscriptEl.scrollTop = liveTranscriptEl.scrollHeight;
+  }
+  function startRecording(){
+    if(!recognition) return;
+    liveFinal = ""; liveTranscriptEl.textContent = "";
+    isRecording = true; recStartTime = Date.now();
+    recDot.classList.add("live"); recStatus.textContent = "Recording";
+    recBtn.textContent = "Stop Recording"; recBtn.dataset.recording = "true"; liveHint.textContent = "";
+    try { recognition.start(); } catch(_err){}
+    recTimerHandle = setInterval(function(){
+      var s = Math.floor((Date.now() - recStartTime) / 1000);
+      recTimer.textContent = String(Math.floor(s/60)).padStart(2,"0") + ":" + String(s%60).padStart(2,"0");
+    }, 250);
+  }
+  function stopRecording(){
+    if(!recognition) return;
+    isRecording = false;
+    recDot.classList.remove("live"); recStatus.textContent = "Stopped";
+    recBtn.textContent = "Start Recording"; recBtn.dataset.recording = "false";
+    clearInterval(recTimerHandle);
+    try { recognition.stop(); } catch(_err){}
+  }
+  if(recBtn){ recBtn.addEventListener("click", function(){ if(isRecording) stopRecording(); else startRecording(); }); }
+
+  // ---------- paste / upload ----------
+  var pasteBox = document.getElementById("pasteBox");
+  var fileInput = document.getElementById("fileInput");
+  function cleanTranscriptText(raw, filename){
+    var text = raw;
+    if(/\.(vtt|srt)$/i.test(filename || "")){
+      text = text.replace(/^WEBVTT.*$/im, "")
+        .split(/\r?\n/)
+        .filter(function(line){
+          var t = line.trim();
+          if(/^\d+$/.test(t)) return false;
+          if(/\d{2}:\d{2}:\d{2}[.,]\d{3}\s*-->/.test(t)) return false;
+          return true;
+        }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+    }
+    return text;
+  }
+  fileInput.addEventListener("change", function(){
+    var f = fileInput.files && fileInput.files[0];
+    if(!f) return;
+    var reader = new FileReader();
+    reader.onload = function(){ pasteBox.value = cleanTranscriptText(String(reader.result), f.name); };
+    reader.readAsText(f);
+  });
+  function getCurrentTranscript(){
+    if(captureMode === "live") return (liveFinal || "").trim() || pasteBox.value.trim();
+    return pasteBox.value.trim();
+  }
+
+  // ---------- generate ----------
+  var generateBtn = document.getElementById("generateBtn");
+  var genStatus = document.getElementById("genStatus");
+  var reviewCard = document.getElementById("reviewCard");
+
+  generateBtn.addEventListener("click", function(){
+    var transcript = getCurrentTranscript();
+    if(!transcript){
+      genStatus.className = "status-line err"; genStatus.textContent = "Add a transcript first.";
+      return;
+    }
+    var dateVal = document.getElementById("meetingDate").value || todayISO();
+    var attendeesVal = document.getElementById("meetingAttendees").value.trim();
+    generateBtn.disabled = true;
+    genStatus.className = "status-line"; genStatus.textContent = "Thinking… (can take up to a minute)";
+    reviewCard.hidden = true;
+
+    fetch("/api/notes/generate", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ transcript: transcript, date: dateVal, attendees: attendeesVal })
+    }).then(function(r){
+      if(!r.ok) return r.json().then(function(e){ throw new Error(e.error || "Generation failed."); });
+      return r.json();
+    }).then(function(data){
+      genStatus.textContent = "";
+      lastTranscriptUsed = transcript;
+      renderReview(data, dateVal, attendeesVal);
+    }).catch(function(e){
+      genStatus.className = "status-line err";
+      genStatus.textContent = e.message || "Couldn't generate notes. Try again.";
+    }).finally(function(){
+      generateBtn.disabled = false;
+    });
+  });
+
+  function renderReview(data, fallbackDate, fallbackAttendees){
+    lastGenerated = {
+      date: data.date || fallbackDate,
+      attendees: data.attendees || fallbackAttendees || "",
+      projectUpdates: Array.isArray(data.projectUpdates) ? data.projectUpdates : [],
+      decisions: Array.isArray(data.decisions) ? data.decisions : [],
+      followUps: Array.isArray(data.followUps) ? data.followUps : [],
+      parkingLot: Array.isArray(data.parkingLot) ? data.parkingLot : []
+    };
+
+    var puEl = document.getElementById("projectUpdatesList");
+    puEl.innerHTML = lastGenerated.projectUpdates.length === 0
+      ? '<p class="hint" style="margin-top:0">No project updates identified.</p>'
+      : lastGenerated.projectUpdates.map(function(pu, i){
+          return '<div class="review-item" data-i="' + i + '">' +
+            '<div class="review-grid">' +
+              '<div class="full"><label class="support-toggle"><input type="checkbox" class="pu-include" checked> include</label></div>' +
+              '<input type="text" class="pu-project full" list="projectNames" value="' + esc(pu.project || GENERAL) + '" placeholder="Project name">' +
+              '<select class="pu-stage">' + STAGES.map(function(s){ return '<option' + (s===pu.stage?" selected":"") + '>' + s + '</option>'; }).join("") + '</select>' +
+              '<select class="pu-health">' + HEALTHS.map(function(h){ return '<option' + (h===pu.health?" selected":"") + '>' + h + '</option>'; }).join("") + '</select>' +
+              '<textarea class="pu-update full" placeholder="Summary">' + esc(pu.update || "") + '</textarea>' +
+            '</div></div>';
+        }).join("");
+
+    var decEl = document.getElementById("decisionsList");
+    decEl.innerHTML = lastGenerated.decisions.length === 0
+      ? '<p class="hint" style="margin-top:0">None this session.</p>'
+      : '<ul class="plain">' + lastGenerated.decisions.map(function(d){
+          return "<li><b>" + esc(d.project || GENERAL) + ":</b> " + esc(d.text || "") + "</li>";
+        }).join("") + "</ul>";
+
+    var fuEl = document.getElementById("followUpsList");
+    fuEl.innerHTML = lastGenerated.followUps.length === 0
+      ? '<p class="hint" style="margin-top:0">None this session.</p>'
+      : lastGenerated.followUps.map(function(f, i){
+          var unclear = (f.owner || "").toUpperCase() === "UNCLEAR";
+          return '<div class="review-item" data-i="' + i + '">' +
+            '<div class="review-grid">' +
+              '<input type="text" class="fu-item full" value="' + esc(f.item || "") + '" placeholder="Follow-up item">' +
+              '<input type="text" class="fu-project" list="projectNames" value="' + esc(f.project || GENERAL) + '" placeholder="Project">' +
+              '<input type="text" class="fu-owner" value="' + esc(f.owner || "UNCLEAR") + '" placeholder="Owner" style="' + (unclear ? "border-color:var(--warn);color:var(--warn);" : "") + '">' +
+              '<div class="full" style="display:flex; gap:14px; align-items:center; flex-wrap:wrap;">' +
+                '<label class="support-toggle"><input type="checkbox" class="fu-include" checked> include</label>' +
+                '<label class="support-toggle"><input type="checkbox" class="fu-support"' + (f.needsSupport?" checked":"") + '> needs support</label>' +
+                '<label class="support-toggle"><input type="checkbox" class="fu-cal"' + (f.calendarFlag?" checked":"") + '> 📅 scheduling</label>' +
+                '<input type="date" class="fu-due" value="' + esc(f.due || "") + '" style="width:auto">' +
+              '</div>' +
+            '</div></div>';
+        }).join("");
+
+    var parkLabel = document.getElementById("parkingLabel");
+    var parkEl = document.getElementById("parkingList");
+    if(lastGenerated.parkingLot.length){
+      parkLabel.hidden = false;
+      parkEl.innerHTML = '<ul class="plain">' + lastGenerated.parkingLot.map(function(p){ return "<li>" + esc(p) + "</li>"; }).join("") + "</ul>";
+    } else {
+      parkLabel.hidden = true; parkEl.innerHTML = "";
+    }
+
+    reviewCard.hidden = false;
+    reviewCard.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  document.getElementById("confirmBtn").addEventListener("click", function(){
+    if(!lastGenerated) return;
+    var status = document.getElementById("confirmStatus");
+    var puRows = Array.prototype.map.call(document.querySelectorAll("#projectUpdatesList .review-item"), function(row){
+      return {
+        include: row.querySelector(".pu-include").checked,
+        project: row.querySelector(".pu-project").value.trim() || GENERAL,
+        stage: row.querySelector(".pu-stage").value,
+        health: row.querySelector(".pu-health").value,
+        update: row.querySelector(".pu-update").value.trim(),
+        isNewProject: !!(lastGenerated.projectUpdates[+row.dataset.i] || {}).isNewProject
+      };
+    });
+    var fuRows = Array.prototype.map.call(document.querySelectorAll("#followUpsList .review-item"), function(row){
+      return {
+        include: row.querySelector(".fu-include").checked,
+        project: row.querySelector(".fu-project").value.trim() || GENERAL,
+        item: row.querySelector(".fu-item").value.trim(),
+        owner: row.querySelector(".fu-owner").value.trim() || "UNCLEAR",
+        due: row.querySelector(".fu-due").value,
+        needsSupport: row.querySelector(".fu-support").checked,
+        calendarFlag: row.querySelector(".fu-cal").checked
+      };
+    });
+
+    var body = {
+      date: lastGenerated.date,
+      attendees: lastGenerated.attendees,
+      projectUpdates: puRows,
+      followUps: fuRows,
+      decisions: lastGenerated.decisions,
+      parkingLot: lastGenerated.parkingLot,
+      transcriptExcerpt: lastTranscriptUsed
+    };
+
+    status.textContent = "Pushing to the Slate…";
+    document.getElementById("confirmBtn").disabled = true;
+    fetch("/api/notes/confirm", {
+      method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(body)
+    }).then(function(r){
+      if(!r.ok) return r.json().then(function(e){ throw new Error(e.error || "Push failed."); });
+      return r.json();
+    }).then(function(result){
+      var created = result.projectsTouched.filter(function(t){ return t.created; }).length;
+      status.textContent = "Pushed to " + result.projectsTouched.length + " project(s)" + (created ? " (" + created + " new)" : "") + ". " ;
+      var link = document.createElement("a");
+      link.href = "/"; link.textContent = "View the board →"; link.style.color = "var(--accent)";
+      status.appendChild(link);
+      loadProjectNames();
+      loadRecent();
+    }).catch(function(e){
+      status.textContent = e.message || "Couldn't push — try again.";
+    }).finally(function(){
+      document.getElementById("confirmBtn").disabled = false;
+    });
+  });
+
+})();
+</script>
+</body>
+</html>

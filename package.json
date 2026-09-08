@@ -2,13 +2,14 @@
   "name": "andas-slate",
   "version": "1.0.0",
   "private": true,
-  "description": "Andas Productions company-wide project slate — stage, health, staffing, milestones, company support asks.",
+  "description": "Andas Productions company-wide project slate — stage, health, staffing, milestones, company support asks, and Claude-drafted check-in notes.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "engines": { "node": ">=18" },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
     "express": "^4.19.2",
     "pg": "^8.11.5",
     "dotenv": "^16.4.5"
